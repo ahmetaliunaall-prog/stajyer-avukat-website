@@ -32,7 +32,8 @@
     ]
   },
   "vars": {
-    "SUPABASE_URL": "https://ztkopywelwximjiopdci.supabase.co"
+    "SUPABASE_URL": "https://ztkopywelwximjiopdci.supabase.co",
+    "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_mkA2Q3ivb3uhxSb9QxF6cg_MxcfZGJ-"
   }
 }
 
