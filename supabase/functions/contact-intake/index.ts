@@ -18,7 +18,7 @@ Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: cors(origin) });
   if (request.method !== 'POST' || !/^https:\/\//i.test(origin)) return json({ error: 'İstek doğrulanamadı.' }, 405, origin);
   const siteOrigin = Deno.env.get('SITE_ORIGIN');
-  if (siteOrigin && origin !== siteOrigin) return json({ error: 'İstek doğrulanamadı.' }, 403, origin);
+  if (!siteOrigin || origin !== siteOrigin) return json({ error: 'İstek doğrulanamadı.' }, 403, origin);
 
   let input: Record<string, unknown>;
   try {
