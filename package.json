@@ -1,17 +1,17 @@
 {
-  "name": "stajyer-avukat-website",
-  "version": "1.0.0",
+  "name": "ahmet-ali-unal-legal-platform",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev",
+    "build": "node scripts/build-pages.mjs",
+    "dev": "npm run build && wrangler pages dev public",
     "test": "node tests/worker.test.js",
-    "check": "node --check worker/index.js && node --check public/app.js && node tests/worker.test.js",
-    "deploy:dry-run": "wrangler deploy --dry-run",
-    "deploy": "wrangler deploy"
+    "check": "node --check worker/index.js && node --check public/app.js && node --check public/admin-enhancements.js && npm test"
   },
   "devDependencies": {
     "wrangler": "^4.40.0"
   }
 }
+
 

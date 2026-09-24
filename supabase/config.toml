@@ -6,3 +6,6 @@ verify_jwt = false
 [functions.ai-assistant]
 verify_jwt = true
 
+[functions.seo-autopilot]
+verify_jwt = false
+
