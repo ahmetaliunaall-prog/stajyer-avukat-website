@@ -15,10 +15,20 @@ const sha256 = async (value: string) => {
 
 Deno.serve(async (request) => {
   const origin = request.headers.get('origin') || 'null';
+  const projectUrl = Deno.env.get('SUPABASE_URL');
+  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || Deno.env.get('SUPABASE_SECRET_KEY');
+  if (!projectUrl || !serviceKey) return json({ error: 'İletişim formu şu anda kullanılamıyor.' }, 503, origin);
+  if (!/^https:\/\//i.test(origin)) return json({ error: 'İstek doğrulanamadı.' }, 403, origin);
+  try {
+    const originCheck = await fetch(`${projectUrl}/rest/v1/rpc/is_site_origin_allowed`, {
+      method: 'POST', headers: { apikey: serviceKey, authorization: `Bearer ${serviceKey}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ p_origin: origin }), signal: AbortSignal.timeout(4000)
+    });
+    if (!originCheck.ok) return json({ error: 'İletişim formu şu anda kullanılamıyor.' }, 503, origin);
+    if (await originCheck.json() !== true) return json({ error: 'İstek doğrulanamadı.' }, 403);
+  } catch { return json({ error: 'İletişim formu şu anda kullanılamıyor.' }, 503); }
   if (request.method === 'OPTIONS') return new Response('ok', { headers: cors(origin) });
-  if (request.method !== 'POST' || !/^https:\/\//i.test(origin)) return json({ error: 'İstek doğrulanamadı.' }, 405, origin);
-  const siteOrigin = Deno.env.get('SITE_ORIGIN');
-  if (!siteOrigin || origin !== siteOrigin) return json({ error: 'İstek doğrulanamadı.' }, 403, origin);
+  if (request.method !== 'POST') return json({ error: 'İstek doğrulanamadı.' }, 405, origin);
 
   let input: Record<string, unknown>;
   try {
@@ -49,10 +59,6 @@ Deno.serve(async (request) => {
       if (!result.success) return json({ error: 'Güvenlik doğrulaması başarısız oldu.' }, 400, origin);
     } catch { return json({ error: 'Güvenlik doğrulaması şu anda kullanılamıyor.' }, 503, origin); }
   }
-
-  const projectUrl = Deno.env.get('SUPABASE_URL');
-  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || Deno.env.get('SUPABASE_SECRET_KEY');
-  if (!projectUrl || !serviceKey) return json({ error: 'İletişim formu şu anda kullanılamıyor.' }, 503, origin);
 
   try {
     const day = new Date().toISOString().slice(0, 10);
