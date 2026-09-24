@@ -318,7 +318,6 @@ end $$;
 
 create policy profiles_self_read on public.profiles for select to authenticated using (id=(select auth.uid()));
 create policy profiles_admin_manage on public.profiles for all to authenticated using ((select public.is_admin())) with check ((select public.is_admin()));
-create policy settings_public_read on public.site_settings for select to anon,authenticated using (true);
 create policy categories_public_read on public.article_categories for select to anon,authenticated using (exists(select 1 from public.articles a where a.category_id=id and a.status='published' and a.deleted_at is null));
 create policy articles_public_read on public.articles for select to anon,authenticated using (status='published' and published_at <= now() and deleted_at is null);
 create policy caselaw_public_read on public.caselaw for select to anon,authenticated using (status='published' and deleted_at is null);
@@ -332,7 +331,8 @@ create policy article_tags_public_read on public.article_tags for select to anon
 create policy article_tag_relations_public_read on public.article_tag_relations for select to anon,authenticated using (exists(select 1 from public.articles a where a.id=article_id and a.status='published' and a.deleted_at is null));
 create policy redirects_public_read on public.redirects for select to anon,authenticated using (enabled);
 
-grant select on public.site_settings,public.article_categories,public.articles,public.caselaw,public.glossary_terms,public.faq,public.legal_topics,public.legal_references,public.navigation_items,public.homepage_sections,public.article_tags,public.article_tag_relations,public.redirects to anon,authenticated;
+grant select on public.article_categories,public.articles,public.caselaw,public.glossary_terms,public.faq,public.legal_topics,public.legal_references,public.navigation_items,public.homepage_sections,public.article_tags,public.article_tag_relations,public.redirects to anon,authenticated;
+grant all on public.profiles to authenticated;
 grant select on public.profiles to authenticated;
 
 create or replace function public.search_public_content(search_text text, limit_count integer default 20)
