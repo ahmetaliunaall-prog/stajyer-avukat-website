@@ -1,45 +1,61 @@
 # Ahmet Ali Ünal — kişisel hukuk platformu
 
-Hukuk araştırmaları, yayınlar, hukuk sözlüğü ve güvenli iletişim için Cloudflare Workers ile Supabase kullanan bir platform.
+Kişisel yayın sitesi ve yönetim alanı. Public site statik dosyalarla çalışır; güvenlik başlıkları, içerik rotaları, sitemap ve iletişim geçidi `worker/` içindeki Cloudflare Worker tarafından sağlanır. Supabase Auth ve mevcut `profiles.role = 'admin'` yetkisi kullanılır. Yeni kullanıcı veya admin hesabı oluşturulmaz.
 
-## Yapı
+## Proje yapısı
 
-- `public/` erişilebilir, mobil öncelikli internet sitesi ve yönetim arayüzü.
-- `worker/` Cloudflare Worker; güvenlik başlıkları, sitemap, robots, yönlendirmeler ve iletişim formu geçidi.
-- `supabase/migrations/` version-controlled yeni veritabanı şeması, RLS ve açıkça örnek olarak işaretlenmiş seed içerikler.
-- `supabase/functions/` AI Studio ve iletişim için server-side Supabase Edge Functions.
-- `tests/` Worker route, form, SEO ve güvenlik başlığı testleri.
+- `public/`: public site, admin arayüzü ve stil dosyaları.
+- `public/admin-enhancements.js`: görünüm teması, site bölümleri, Basit/Geliştirici modu, SEO denetimi, geri yükleme alanı, sağlık kontrolleri ve komut paleti.
+- `worker/index.js`: API geçidi, güvenlik başlıkları, sitemap, sayfa yönlendirme ve 404 davranışı.
+- `scripts/build-pages.mjs`: Worker kaynağını Pages gelişmiş modunun kullandığı `public/_worker.js` dosyasına kopyalar.
+- `supabase/functions/`: sunucu tarafında AI, iletişim ve SEO işlevleri.
+- `supabase/migrations/`: mevcut veritabanına yönelik, dar kapsamlı ek migrations.
+- `tests/`: Worker istek akışı testleri.
 
-İlk migration, mevcut uygulama şemasını temiz kurar. Supabase Auth kullanıcıları korunur; mevcut `admin_users` kayıtlarındaki hesaplar yeni `profiles` tablosuna `admin` rolüyle taşınır. Eski içerik verileri migration’a aktarılmaz. Sıfırlama öncesi dışa alınan yerel yedek kaynak koduna veya GitHub’a eklenmemelidir.
+## Geliştirme ve kontrol
 
-Örnek makale, içtihat, sözlük ve SSS kayıtları gerçek hukuki kaynak veya karar değildir; `is_demo` ile işaretlenir ve arayüzde örnek olarak belirtilir.
-
-## Yerel kontrol
+Node.js kurulu bir ortamda:
 
 ```sh
 npm install
-npm test
+npm run check
+npm run build
 npm run dev
 ```
 
-## Bağlantılar ve sırlar
+`npm run dev`, Pages gelişmiş modunu yerel önizlemede açar. `npm run build`, Pages'in çalıştıracağı `_worker.js` dosyasını üretir.
 
-Worker’ın Supabase URL’si ve publishable key’i `wrangler.jsonc` içinde ayarlıdır. Publishable key tarayıcıda kullanılabilir; erişim RLS ile korunur. İzinli site origin’leri özel Supabase ayarında tutulur; geçici Worker alan adı ve `ahmetaliunal.com.tr` migration ile eklenmiştir. Service-role anahtarı, `GEMINI_API_KEY` ve `TELEGRAM_BOT_TOKEN` yalnızca Supabase Edge Function secret’larında kalmalıdır. Bunları `.env`, Worker public vars, istemci kodu veya repository’ye koymayın.
+## Supabase ve veri güvenliği
 
-AI Edge Function mevcut `GEMINI_API_KEY` değerini, iletişim bildirimi mevcut `TELEGRAM_BOT_TOKEN` değerini kullanır. Telegram sohbet kimliği veritabanı yedeğinden gizli `private.integration_settings` tablosuna aktarılır. İletişim kayıtları anonim API’den doğrudan yazılamaz; server-side işlev formu doğrular ve pseudonymous, günlük hash ile istek sınırı uygular. Turnstile siteye bağlanırsa `TURNSTILE_SECRET_KEY` Supabase Edge Function secret’ı olarak eklenebilir.
+Bu çalışma kopyası mevcut Supabase projesinin şemasına göre hazırlanmıştır; boş bir Supabase projesi için tam başlangıç şeması değildir. 24 Eylül 2026 tarihinde canlı projeye `public_site_settings_read` ve `public_content_taxonomy` migration'ları uygulandı. Bunlar herkese açık site ayarlarının okunmasını sağlar ve kategori, etiket ve makale-etiket bağlantısı okuma kurallarını yayımlanmış, tarihi gelmiş ve silinmemiş makalelerle sınırlar.
 
-## Veritabanı
+`seo-autopilot` canlı Edge Function'ı, `profiles.role = 'admin'` denetimi ve mevcut site-kaynağı izin kontrolüyle v2 sürümüne güncellendi. Function `verify_jwt=false` ayarıyla çalışır; çünkü kendi içinde yönetici oturumunu veya `SEO_AUTOPILOT_SECRET` cron başlığını doğrular. Function çalıştırıldığında yalnızca mevcut yayımlanmış içerikten eksik SEO başlık/açıklamalarını tamamlayabilir ve denetim kaydı yazabilir.
 
-Migration `20260924000100_clean_legal_platform.sql` public uygulama tablolarını, eski işlevleri ve politikaları sıfırlar; Supabase Auth kimliklerini koruyup eski yöneticileri taşır. Sadece önceden alınmış yedek kontrol edildikten sonra uygulanmalıdır. Günlük operasyonlar `supabase/migrations` üzerinden version-control edilmelidir.
+İki yönetici hesabı korundu; kullanıcı, rol ve içerik kayıtları bu güncelleme sırasında değiştirilmedi. Gemini ve Telegram secret değerleri okunmadı, değiştirilmedi veya dosyalara yazılmadı. Function ayarlarında kullanılan adlar arasında `SUPABASE_SERVICE_ROLE_KEY`, `GEMINI_API_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `SITE_ORIGINS` ve isteğe bağlı SEO tetikleyicisi `SEO_AUTOPILOT_SECRET` bulunur. Secret değerlerini yalnızca Supabase Function secrets alanında saklayın.
 
-## Yayın öncesi
+Canlı veritabanı temizliği veya ilk kurulum gerekiyorsa, uygulama kodunu yayımlamadan önce ayrı, incelenmiş bir migration ve geri dönüş planı hazırlayın. Bu depoya eski bir `DROP ... CASCADE` temiz kurulum betiği dahil edilmemiştir.
 
-1. `npm test` ve `npm run deploy:dry-run` çalıştırın.
-2. Supabase RLS’yi anonim ve yönetici oturumlarıyla doğrulayın.
-3. `SITE_ORIGINS` migration’ı uygulandıktan sonra Cloudflare Worker’ı yayınlayın. DNS’i yönlendirdiğinizde uygulama `ahmetaliunal.com.tr` origin’ini tanıyacaktır.
-4. `SUPABASE_SERVICE_ROLE_KEY`, `GEMINI_API_KEY` ve `TELEGRAM_BOT_TOKEN` değerlerinin Supabase Function secret’larında kaldığını doğrulayın; değerleri loglamayın.
-5. Cloudflare’da Worker’ı yayınlayın, özel alan adını ve `SITE_ORIGIN` değerini yapılandırın.
-6. Supabase Auth’ta sızmış parola korumasını etkinleştirin; yasal metinleri ve iletişim izinlerini yayımdan önce gözden geçirin.
+## Cloudflare ve gizli değerler
 
-Bu depo hukuki danışmanlık sunmaz. Demo içerikler doğrulanmadan gerçek hukuki kaynak, karar veya biyografi gibi yayımlanmamalıdır.
+Pages yapılandırması `wrangler.jsonc` içinde tutulur:
+
+- **Build command:** `npm run build`
+- **Build output directory:** `public`
+- `SUPABASE_URL` ve `SUPABASE_PUBLISHABLE_KEY` değerleri yapılandırmada yer alır. Publishable key tarayıcıda kullanılabilir; erişim denetimini Supabase RLS yapar.
+- `GEMINI_API_KEY`, `TELEGRAM_BOT_TOKEN` ve Supabase service-role key'i Cloudflare'a, Worker değişkenlerine, `.env` dosyasına veya repository'ye koymayın. Bunlar Supabase Function secrets olarak kalır.
+
+## Cloudflare Pages yayını
+
+1. GitHub'daki kod dalını `main` ile birleştir.
+2. Cloudflare Pages projesinde derleme komutunu `npm run build`, çıktı klasörünü `public` olarak ayarla.
+3. Publishable Supabase ayarlarının `wrangler.jsonc` ile aynı olduğunu doğrula.
+4. Yayına aldıktan sonra ana sayfayı, iletişim formunu ve admin girişini kontrol et.
+
+Bu sürüm Cloudflare Pages'in gelişmiş Worker modunu kullanır; yalnızca statik dosya yükleyen Pages modu yeterli değildir. Kod mevcut GitHub deposunda ayrı bir dalda yayımlandı; Pages üretim yayını yapılmadı.
+
+## Kapsam notları
+
+Basit/Geliştirici modu, section görünürlüğü ve metin düzenleme, AI geçmişi, çöp kutusu/geri yükleme, site SEO denetimi ve mobil uyumlu paneller eklenmiştir. SEO denetimi yalnızca gerçek içerik alanlarını inceler; trafik veya sıralama verisi uydurmaz. Tam analiz akışları, görsel düzenleme, yayın takvimi, otomasyon zamanlaması, analitik sağlayıcı bağlantısı ve bütün mobil/auth kritik akışlarının uçtan uca doğrulaması bu çalışma kopyasında tamamlanmış değildir.
+
+Hukuki içerikler yayımdan önce kaynaklarıyla doğrulanmalıdır. Site genel bilgilendirme sunar; somut hukuki danışmanlık veya sonuç garantisi verdiğini iddia etmez. Biyografi, deneyim veya mesleki iddialar doğrulanmadan eklenmemelidir.
 
