@@ -9,7 +9,7 @@ grant execute on function private.is_admin() to anon, authenticated;
 grant usage on schema private to anon, authenticated;
 
 do $$ declare t text; begin
-  foreach t in array array['profiles','site_settings','article_categories','articles','article_tags','article_tag_relations','caselaw','glossary_terms','faq','legal_topics','legal_references','navigation_items','homepage_sections','media','leads','lead_notes','lead_events','contact_rate_limits','analytics_events','security_logs','admin_audit_logs','seo_audits','ai_generations','ai_usage','newsletter_subscribers','redirects','content_versions'] loop
+  foreach t in array array['site_settings','article_categories','articles','article_tags','article_tag_relations','caselaw','glossary_terms','faq','legal_topics','legal_references','navigation_items','homepage_sections','media','leads','lead_notes','lead_events','contact_rate_limits','analytics_events','security_logs','admin_audit_logs','seo_audits','ai_generations','ai_usage','newsletter_subscribers','redirects','content_versions'] loop
     execute format('drop policy if exists %I on public.%I',t||'_admin_all',t);
     execute format('create policy %I on public.%I for all to authenticated using ((select private.is_admin())) with check ((select private.is_admin()))',t||'_admin_all',t);
   end loop;
