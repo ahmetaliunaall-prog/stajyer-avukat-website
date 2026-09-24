@@ -1,7 +1,9 @@
+const SITE_ORIGIN = Deno.env.get('SITE_ORIGIN') || '';
 const cors = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': SITE_ORIGIN || 'null',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS'
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Vary': 'Origin'
 };
 const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
   status, headers: { ...cors, 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }
@@ -21,6 +23,8 @@ const TASKS: Record<string, string> = {
 };
 
 Deno.serve(async (request) => {
+  const origin = request.headers.get('origin') || '';
+  if (!SITE_ORIGIN || origin !== SITE_ORIGIN) return reply({ error: 'İstek doğrulanamadı.' }, 403);
   if (request.method === 'OPTIONS') return new Response('ok', { headers: cors });
   if (request.method !== 'POST') return reply({ error: 'Bu istek desteklenmiyor.' }, 405);
   const authorization = request.headers.get('authorization') || '';
