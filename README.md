@@ -24,7 +24,7 @@ npm run dev
 
 ## Bağlantılar ve sırlar
 
-Worker’ın `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` ve dağıtım sonrasında belirlenecek `SITE_ORIGIN` değişkenleri gerekir. `SITE_ORIGIN` Supabase Edge Function secret/config olarak da ayarlanmalıdır; AI ve iletişim uçları fail closed çalışır ve yalnızca eşleşen origin’i kabul eder. Publishable key tarayıcıda kullanılabilir; erişim RLS ile korunur. Service-role anahtarı, `GEMINI_API_KEY` ve `TELEGRAM_BOT_TOKEN` yalnızca Supabase Edge Function secret’larında kalmalıdır. Bunları `.env`, Worker public vars, istemci kodu veya repository’ye koymayın.
+Worker’ın Supabase URL’si ve publishable key’i `wrangler.jsonc` içinde ayarlıdır. Publishable key tarayıcıda kullanılabilir; erişim RLS ile korunur. Deploy alan adı belli olduğunda `SITE_ORIGIN` değerini Worker ve Supabase Edge Function ortamına aynı şekilde ekleyin; AI ve iletişim uçları bu değer olmadan fail closed çalışır. Service-role anahtarı, `GEMINI_API_KEY` ve `TELEGRAM_BOT_TOKEN` yalnızca Supabase Edge Function secret’larında kalmalıdır. Bunları `.env`, Worker public vars, istemci kodu veya repository’ye koymayın.
 
 AI Edge Function mevcut `GEMINI_API_KEY` değerini, iletişim bildirimi mevcut `TELEGRAM_BOT_TOKEN` değerini kullanır. Telegram sohbet kimliği veritabanı yedeğinden gizli `private.integration_settings` tablosuna aktarılır. İletişim kayıtları anonim API’den doğrudan yazılamaz; server-side işlev formu doğrular ve pseudonymous, günlük hash ile istek sınırı uygular. Turnstile siteye bağlanırsa `TURNSTILE_SECRET_KEY` Supabase Edge Function secret’ı olarak eklenebilir.
 
@@ -36,7 +36,7 @@ Migration `20260924000100_clean_legal_platform.sql` public uygulama tabloların�
 
 1. `npm test` ve `npm run deploy:dry-run` çalıştırın.
 2. Supabase RLS’yi anonim ve yönetici oturumlarıyla doğrulayın.
-3. Cloudflare Worker’a Supabase URL’si, publishable key’i ve yayınlanacak alan adınıza eşit `SITE_ORIGIN` değerini değişken olarak ekleyin; aynı `SITE_ORIGIN` değerini Supabase Edge Function secret/config ayarına ekleyin.
+3. Yayınlanacak alan adınıza eşit `SITE_ORIGIN` değerini Cloudflare Worker vars ve Supabase Edge Function secret/config ayarına ekleyin.
 4. `SUPABASE_SERVICE_ROLE_KEY`, `GEMINI_API_KEY` ve `TELEGRAM_BOT_TOKEN` değerlerinin Supabase Function secret’larında kaldığını doğrulayın; değerleri loglamayın.
 5. Cloudflare’da Worker’ı yayınlayın, özel alan adını ve `SITE_ORIGIN` değerini yapılandırın.
 6. Supabase Auth’ta sızmış parola korumasını etkinleştirin; yasal metinleri ve iletişim izinlerini yayımdan önce gözden geçirin.
