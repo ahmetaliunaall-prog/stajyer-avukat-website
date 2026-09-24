@@ -1,0 +1,8 @@
+project_id = "ztkopywelwximjiopdci"
+
+[functions.contact-intake]
+verify_jwt = false
+
+[functions.ai-assistant]
+verify_jwt = true
+

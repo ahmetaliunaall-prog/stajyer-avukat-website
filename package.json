@@ -1,0 +1,17 @@
+{
+  "name": "stajyer-avukat-website",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "test": "node tests/worker.test.js",
+    "check": "node --check worker/index.js && node --check public/app.js && node tests/worker.test.js",
+    "deploy:dry-run": "wrangler deploy --dry-run",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.40.0"
+  }
+}
+
