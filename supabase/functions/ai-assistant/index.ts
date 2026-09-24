@@ -1,15 +1,23 @@
-const SITE_ORIGIN = Deno.env.get('SITE_ORIGIN') || '';
-const cors = {
-  'Access-Control-Allow-Origin': SITE_ORIGIN || 'null',
+const cors = (origin = 'null') => ({
+  'Access-Control-Allow-Origin': origin,
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Vary': 'Origin'
-};
-const reply = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
-  status, headers: { ...cors, 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }
+});
+const reply = (body: unknown, status = 200, origin = 'null') => new Response(JSON.stringify(body), {
+  status, headers: { ...cors(origin), 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }
 });
 const PROJECT_URL = Deno.env.get('SUPABASE_URL') || '';
-const PUBLISHABLE_KEY = Deno.env.get('SUPABASE_ANON_KEY') || Deno.env.get('SUPABASE_PUBLISHABLE_KEYS') || '';
+const PUBLISHABLE_KEY = Deno.env.get('SUPABASE_ANON_KEY') || Deno.env.get('SUPABASE_PUBLISHABLE_KEY') || Deno.env.get('SUPABASE_PUBLISHABLE_KEYS') || '';
+const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || Deno.env.get('SUPABASE_SECRET_KEY') || '';
+async function isAllowedOrigin(origin: string) {
+  const response = await fetch(`${PROJECT_URL}/rest/v1/rpc/is_site_origin_allowed`, {
+    method: 'POST', headers: { apikey: SERVICE_KEY, authorization: `Bearer ${SERVICE_KEY}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ p_origin: origin }), signal: AbortSignal.timeout(4000)
+  });
+  if (!response.ok) throw new Error('origin check unavailable');
+  return await response.json() === true;
+}
 const MODEL = 'gemini-3.6-flash';
 const TASKS: Record<string, string> = {
   outline: 'Prepare a structured article outline with a clear question, section headings and matters the human author should verify.',
@@ -24,40 +32,42 @@ const TASKS: Record<string, string> = {
 
 Deno.serve(async (request) => {
   const origin = request.headers.get('origin') || '';
-  if (!SITE_ORIGIN || origin !== SITE_ORIGIN) return reply({ error: 'İstek doğrulanamadı.' }, 403);
-  if (request.method === 'OPTIONS') return new Response('ok', { headers: cors });
-  if (request.method !== 'POST') return reply({ error: 'Bu istek desteklenmiyor.' }, 405);
+  const send = (body: unknown, status = 200) => reply(body, status, origin || 'null');
+  if (!origin || !PROJECT_URL || !SERVICE_KEY) return reply({ error: 'İstek doğrulanamadı.' }, 403);
+  try { if (!await isAllowedOrigin(origin)) return reply({ error: 'İstek doğrulanamadı.' }, 403); }
+  catch { return reply({ error: 'İstek doğrulanamadı.' }, 503); }
+  if (request.method === 'OPTIONS') return new Response('ok', { headers: cors(origin) });
+  if (request.method !== 'POST') return send({ error: 'Bu istek desteklenmiyor.' }, 405);
   const authorization = request.headers.get('authorization') || '';
   const token = authorization.replace(/^Bearer\s+/i, '');
-  if (!token || !PROJECT_URL || !PUBLISHABLE_KEY) return reply({ error: 'Oturum doğrulanamadı.' }, 401);
+  if (!token || !PUBLISHABLE_KEY) return send({ error: 'Oturum doğrulanamadı.' }, 401);
 
   try {
     const userResponse = await fetch(`${PROJECT_URL}/auth/v1/user`, {
       headers: { apikey: PUBLISHABLE_KEY, authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(5000)
     });
-    if (!userResponse.ok) return reply({ error: 'Oturum doğrulanamadı.' }, 401);
+    if (!userResponse.ok) return send({ error: 'Oturum doğrulanamadı.' }, 401);
     const user = await userResponse.json();
     const profileResponse = await fetch(`${PROJECT_URL}/rest/v1/profiles?id=eq.${encodeURIComponent(user.id)}&select=role`, {
       headers: { apikey: PUBLISHABLE_KEY, authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(5000)
     });
     const profiles = profileResponse.ok ? await profileResponse.json() : [];
-    if (!profiles.some((profile: { role: string }) => profile.role === 'admin')) return reply({ error: 'Bu işlem için yönetici yetkisi gerekir.' }, 403);
+    if (!profiles.some((profile: { role: string }) => profile.role === 'admin')) return send({ error: 'Bu işlem için yönetici yetkisi gerekir.' }, 403);
 
     const input = await request.json();
     const task = typeof input.task === 'string' ? input.task : '';
     const prompt = typeof input.prompt === 'string' ? input.prompt.trim().slice(0, 12000) : '';
     const sources = Array.isArray(input.sources) ? input.sources.slice(0, 20).map((source: unknown) => String(source).slice(0, 500)) : [];
-    if (!TASKS[task] || prompt.length < 10) return reply({ error: 'İstek bilgileri geçersiz.' }, 400);
+    if (!TASKS[task] || prompt.length < 10) return send({ error: 'İstek bilgileri geçersiz.' }, 400);
 
     const apiKey = Deno.env.get('GEMINI_API_KEY');
-    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || Deno.env.get('SUPABASE_SECRET_KEY');
-    if (!apiKey || !serviceKey) return reply({ error: 'AI servisi şu anda yapılandırılmamış.' }, 503);
+    if (!apiKey || !SERVICE_KEY) return send({ error: 'AI servisi şu anda yapılandırılmamış.' }, 503);
     const dayStart = new Date(); dayStart.setUTCHours(0,0,0,0);
     const usageCheck = await fetch(`${PROJECT_URL}/rest/v1/ai_generations?select=id&created_by=eq.${encodeURIComponent(user.id)}&created_at=gte.${encodeURIComponent(dayStart.toISOString())}&limit=31`, {
-      headers: { apikey: serviceKey, authorization: `Bearer ${serviceKey}` }, signal: AbortSignal.timeout(5000)
+      headers: { apikey: SERVICE_KEY, authorization: `Bearer ${SERVICE_KEY}` }, signal: AbortSignal.timeout(5000)
     });
-    if (!usageCheck.ok) return reply({ error: 'AI kullanım sınırı şu anda denetlenemiyor.' }, 503);
-    if ((await usageCheck.json()).length >= 30) return reply({ error: 'Günlük taslak sınırına ulaşıldı. Daha sonra tekrar deneyin.' }, 429);
+    if (!usageCheck.ok) return send({ error: 'AI kullanım sınırı şu anda denetlenemiyor.' }, 503);
+    if ((await usageCheck.json()).length >= 30) return send({ error: 'Günlük taslak sınırına ulaşıldı. Daha sonra tekrar deneyin.' }, 429);
     const system = [
       'You are a careful Turkish legal research writing assistant. Produce an unpublished draft for review by a human legal professional.',
       'Never invent legislation, court decisions, docket numbers, quotations, citations, sources, facts, qualifications or user biographical details.',
@@ -74,29 +84,27 @@ Deno.serve(async (request) => {
       body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: system }] }], generationConfig: { temperature: 0.25, maxOutputTokens: 4096 } }),
       signal: AbortSignal.timeout(45000)
     });
-    if (!generation.ok) return reply({ error: 'AI servisi şu anda yanıt veremiyor.' }, 502);
+    if (!generation.ok) return send({ error: 'AI servisi şu anda yanıt veremiyor.' }, 502);
     const result = await generation.json();
     const output = result?.candidates?.[0]?.content?.parts?.map((part: { text?: string }) => part.text || '').join('').trim();
-    if (!output) return reply({ error: 'AI taslağı oluşturulamadı.' }, 502);
+    if (!output) return send({ error: 'AI taslağı oluşturulamadı.' }, 502);
 
-    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || Deno.env.get('SUPABASE_SECRET_KEY');
-    if (!serviceKey) return reply({ error: 'Taslak kaydı şu anda kullanılamıyor.' }, 503);
     const save = await fetch(`${PROJECT_URL}/rest/v1/ai_generations`, {
-      method: 'POST', headers: { apikey: serviceKey, authorization: `Bearer ${serviceKey}`, 'content-type': 'application/json', prefer: 'return=representation' },
+      method: 'POST', headers: { apikey: SERVICE_KEY, authorization: `Bearer ${SERVICE_KEY}`, 'content-type': 'application/json', prefer: 'return=representation' },
       body: JSON.stringify({ created_by: user.id, task, input: { prompt, sources }, output, status: 'draft', source_references: sources, model: MODEL }),
       signal: AbortSignal.timeout(7000)
     });
-    if (!save.ok) return reply({ error: 'Taslak güvenli biçimde kaydedilemedi.' }, 503);
+    if (!save.ok) return send({ error: 'Taslak güvenli biçimde kaydedilemedi.' }, 503);
     const saved = await save.json();
     const usage = result?.usageMetadata || {};
     await fetch(`${PROJECT_URL}/rest/v1/ai_usage`, {
-      method: 'POST', headers: { apikey: serviceKey, authorization: `Bearer ${serviceKey}`, 'content-type': 'application/json', prefer: 'return=minimal' },
+      method: 'POST', headers: { apikey: SERVICE_KEY, authorization: `Bearer ${SERVICE_KEY}`, 'content-type': 'application/json', prefer: 'return=minimal' },
       body: JSON.stringify({ actor_id: user.id, provider: 'Gemini', model: MODEL, task, input_tokens: usage.promptTokenCount ?? null, output_tokens: usage.candidatesTokenCount ?? null }),
       signal: AbortSignal.timeout(5000)
     });
-    return reply({ success: true, draft_id: saved?.[0]?.id, text: output, status: 'draft', model: MODEL });
+    return send({ success: true, draft_id: saved?.[0]?.id, text: output, status: 'draft', model: MODEL });
   } catch {
-    return reply({ error: 'İstek tamamlanamadı. Lütfen daha sonra tekrar deneyin.' }, 503);
+    return send({ error: 'İstek tamamlanamadı. Lütfen daha sonra tekrar deneyin.' }, 503);
   }
 });
 
